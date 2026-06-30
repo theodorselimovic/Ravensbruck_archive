@@ -139,6 +139,7 @@ def write_to_gsheet(
 
     data = [result.columns.tolist()] + result.values.tolist()
     worksheet.update(range_name="A1", values=data)
+    worksheet.freeze(rows=1)
 
     print(f"Wrote {len(result)} rows to Google Sheet tab '{tab_name}'")
 
