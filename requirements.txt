@@ -1,0 +1,6 @@
+pandas
+pyarrow
+spacy
+requests
+gspread
+google-auth

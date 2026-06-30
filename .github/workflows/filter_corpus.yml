@@ -1,0 +1,48 @@
+name: Filter Corpus by Category
+
+on:
+  workflow_dispatch:
+    inputs:
+      category:
+        description: 'Category to search (column name from the Google Sheet)'
+        required: true
+        type: choice
+        options:
+          - 'Confined space'
+          - 'Unconfined nature space'
+          - 'Unconfined imaginary space'
+      gender:
+        description: 'Filter by gender (optional)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - 'female'
+          - 'male'
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run filter
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          ARGS="--category \"${{ inputs.category }}\" --output-gsheet ${{ secrets.OUTPUT_SHEET_ID }}"
+          if [ -n "${{ inputs.gender }}" ]; then
+            ARGS="$ARGS --gender ${{ inputs.gender }}"
+          fi
+          eval python kod/11_filter_by_sheet.py $ARGS
