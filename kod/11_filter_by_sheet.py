@@ -47,12 +47,10 @@ DEFAULT_SHEET_ID = "1qhmuSIxo_kpRudFiyVenyr4BsvoNH4NVoVbzJELnQ5g"
 # ============================================================================
 
 def fetch_categories(sheet_id: str) -> Dict[str, List[str]]:
-    """Fetch a public Google Sheet and return {category_name: [ngrams]}.
+    """Fetch a public Google Sheet and return {category_name: [terms]}.
 
-    Each cell is split on commas first (explicit alternatives), then each
-    resulting term is expanded into unigrams and bigrams.  Duplicates are
-    removed while preserving order; longer n-grams come first so the
-    searcher can prefer the most specific match.
+    Each cell is split on commas (for explicit alternatives).
+    Terms are searched exactly as written.
     """
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     resp = requests.get(url, timeout=30)
@@ -63,27 +61,20 @@ def fetch_categories(sheet_id: str) -> Dict[str, List[str]]:
 
     for col in sheet.columns:
         seen: set = set()
-        ngrams: List[str] = []
+        terms: List[str] = []
 
         for val in sheet[col].dropna():
             for term in str(val).split(","):
                 term = term.strip()
                 if not term:
                     continue
-                tokens = term.split()
-                expansions: List[str] = []
-                if len(tokens) >= 2:
-                    for i in range(len(tokens) - 1):
-                        expansions.append(f"{tokens[i]} {tokens[i+1]}")
-                expansions.extend(tokens)
-                for ng in expansions:
-                    key = ng.lower()
-                    if key not in seen:
-                        seen.add(key)
-                        ngrams.append(ng)
+                key = term.lower()
+                if key not in seen:
+                    seen.add(key)
+                    terms.append(term)
 
-        if ngrams:
-            categories[col] = ngrams
+        if terms:
+            categories[col] = terms
 
     return categories
 
@@ -282,24 +273,14 @@ def main() -> None:
 
         sentences = sentencize(text)
         for sent_idx, sent in enumerate(sentences):
-            matched: set = set()
             for word, pat in patterns:
                 if pat.search(sent):
-                    matched.add(word)
-            # Drop unigrams that are part of an already-matched bigram
-            bigrams = {w for w in matched if " " in w}
-            if bigrams:
-                matched = {
-                    w for w in matched
-                    if " " in w or not any(w.lower() in bg.lower() for bg in bigrams)
-                }
-            for word in matched:
-                rows.append({
-                    "doc_id": doc_id,
-                    "sentence_idx": sent_idx,
-                    "matched_word": word,
-                    "sentence": sent,
-                })
+                    rows.append({
+                        "doc_id": doc_id,
+                        "sentence_idx": sent_idx,
+                        "matched_word": word,
+                        "sentence": sent,
+                    })
 
     if not rows:
         print(f"No sentences found for category '{selected}'.")
