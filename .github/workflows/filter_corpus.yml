@@ -11,6 +11,12 @@ on:
           - 'Confined space'
           - 'Unconfined nature space'
           - 'Unconfined imaginary space'
+          - 'Identity positions'
+          - 'Agency'
+          - 'Emotions'
+          - 'Embodiment'
+          - 'Events'
+          - 'Time'
       gender:
         description: 'Filter by gender (optional)'
         required: false
