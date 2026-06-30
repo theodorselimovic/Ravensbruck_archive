@@ -31,16 +31,6 @@ from typing import Dict, List
 import pandas as pd
 import requests
 
-try:
-    import spacy
-except ImportError:
-    print(
-        "spaCy is required but not installed. Run:\n"
-        "  pip install spacy",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
 
 # ============================================================================
 # Configuration
@@ -102,19 +92,13 @@ def fetch_categories(sheet_id: str) -> Dict[str, List[str]]:
 # Sentencizer
 # ============================================================================
 
-class Sentencizer:
-    """Splits document text into sentences using spaCy's rule-based sentencizer."""
+SENT_BOUNDARY = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
 
-    def __init__(self):
-        self.nlp = spacy.blank("en")
-        self.nlp.add_pipe("sentencizer")
-        self.nlp.max_length = 500_000
-
-    def sentencize(self, text: str) -> List[str]:
-        if not text or not text.strip():
-            return []
-        doc = self.nlp(text)
-        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+def sentencize(text: str) -> List[str]:
+    """Split text into sentences using punctuation + capital letter boundaries."""
+    if not text or not text.strip():
+        return []
+    return [s.strip() for s in SENT_BOUNDARY.split(text) if s.strip()]
 
 
 # ============================================================================
@@ -281,7 +265,6 @@ def main() -> None:
     patterns = [(w, re.compile(r"\b" + re.escape(w) + r"\b", re.IGNORECASE)) for w in words]
 
     # -- Search sentences ---------------------------------------------------
-    sentencizer = Sentencizer()
     rows: List[dict] = []
 
     for _, doc_row in df.iterrows():
@@ -297,7 +280,7 @@ def main() -> None:
         if not text or not isinstance(text, str):
             continue
 
-        sentences = sentencizer.sentencize(text)
+        sentences = sentencize(text)
         for sent_idx, sent in enumerate(sentences):
             matched: set = set()
             for word, pat in patterns:
