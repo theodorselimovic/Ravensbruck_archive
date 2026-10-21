@@ -17,6 +17,7 @@ on:
           - 'Embodiment'
           - 'Events'
           - 'Time'
+          - 'Mobilities'
       gender:
         description: 'Filter by gender (optional)'
         required: false
