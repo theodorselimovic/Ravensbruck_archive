@@ -46,6 +46,15 @@ DEFAULT_SHEET_ID = "1qhmuSIxo_kpRudFiyVenyr4BsvoNH4NVoVbzJELnQ5g"
 # Google Sheet fetcher
 # ============================================================================
 
+def format_testimony_number(raw: object) -> str:
+    """Render the printed testimony number (e.g. 3.0 -> "3"); "" if missing."""
+    if raw is None or pd.isna(raw):
+        return ""
+    if isinstance(raw, float) and raw == int(raw):
+        return str(int(raw))
+    return str(raw)
+
+
 def fetch_categories(sheet_id: str) -> Dict[str, List[str]]:
     """Fetch a public Google Sheet and return {category_name: [terms]}.
 
@@ -243,8 +252,10 @@ def main() -> None:
         print(f"No text column found. Columns: {list(df.columns)}", file=sys.stderr)
         sys.exit(1)
 
-    if "testimony_number" not in df.columns:
-        df["testimony_number"] = df.index.astype(str)
+    # doc_id is the filename stem (e.g. "3" vs "t-3"); testimony_number is
+    # NOT unique across files, so it must not be used as an identifier.
+    if "doc_id" not in df.columns:
+        df["doc_id"] = df.index.astype(str)
 
     if args.gender:
         if "gender" not in df.columns:
@@ -260,13 +271,8 @@ def main() -> None:
     rows: List[dict] = []
 
     for _, doc_row in df.iterrows():
-        raw_id = doc_row["testimony_number"]
-        if pd.isna(raw_id):
-            doc_id = "unknown"
-        elif isinstance(raw_id, float) and raw_id == int(raw_id):
-            doc_id = str(int(raw_id))
-        else:
-            doc_id = str(raw_id)
+        doc_id = str(doc_row["doc_id"])
+        testimony_number = format_testimony_number(doc_row.get("testimony_number"))
 
         text = doc_row[text_col]
         if not text or not isinstance(text, str):
@@ -278,6 +284,8 @@ def main() -> None:
                 if pat.search(sent):
                     rows.append({
                         "doc_id": doc_id,
+                    "testimony_number": testimony_number,
+                        "testimony_number": testimony_number,
                         "sentence_idx": sent_idx,
                         "matched_word": word,
                         "sentence": sent,

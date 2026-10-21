@@ -197,9 +197,11 @@ class VerbAnalyser:
                 logger.error("No testimony/text column found. Columns: %s", list(df.columns))
                 sys.exit(1)
 
-        if "testimony_number" not in df.columns:
-            df["testimony_number"] = df.index.astype(str)
-            logger.info("No testimony_number column; using row index as doc_id")
+        # doc_id is the filename stem (e.g. "3" vs "t-3"); testimony_number is
+        # NOT unique across files, so it must not be used as an identifier.
+        if "doc_id" not in df.columns:
+            df["doc_id"] = df.index.astype(str)
+            logger.info("No doc_id column; using row index as doc_id")
 
         df = df.dropna(subset=["testimony"])
         df = df[df["testimony"].str.strip().astype(bool)]
@@ -224,13 +226,7 @@ class VerbAnalyser:
         start = time.time()
 
         for i, (_, row) in enumerate(df.iterrows()):
-            raw_id = row["testimony_number"]
-            if pd.isna(raw_id):
-                doc_id = f"row_{i}"
-            elif isinstance(raw_id, float) and raw_id == int(raw_id):
-                doc_id = str(int(raw_id))
-            else:
-                doc_id = str(raw_id)
+            doc_id = str(row["doc_id"])
             text = row["testimony"]
 
             try:
