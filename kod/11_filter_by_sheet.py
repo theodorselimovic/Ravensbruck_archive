@@ -15,21 +15,26 @@ Usage:
     python 11_filter_by_sheet.py --output-gsheet OUTPUT_SHEET_ID --credentials creds.json
 
 Requirements:
-    pandas, pyarrow, spacy, requests
+    pandas, pyarrow, requests
     gspread, google-auth (only for Google Sheets output)
 """
 
 import argparse
-import io
-import json
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import pandas as pd
-import requests
+
+from sheet_categories import (
+    DEFAULT_SHEET_ID,
+    fetch_categories,
+    open_spreadsheet,
+    sentencize,
+    term_pattern,
+    write_tab,
+)
 
 
 # ============================================================================
@@ -39,11 +44,10 @@ import requests
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = PROJECT_ROOT / "data" / "metadata.parquet"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "filtered"
-DEFAULT_SHEET_ID = "1qhmuSIxo_kpRudFiyVenyr4BsvoNH4NVoVbzJELnQ5g"
 
 
 # ============================================================================
-# Google Sheet fetcher
+# Helpers
 # ============================================================================
 
 def format_testimony_number(raw: object) -> str:
@@ -53,52 +57,6 @@ def format_testimony_number(raw: object) -> str:
     if isinstance(raw, float) and raw == int(raw):
         return str(int(raw))
     return str(raw)
-
-
-def fetch_categories(sheet_id: str) -> Dict[str, List[str]]:
-    """Fetch a public Google Sheet and return {category_name: [terms]}.
-
-    Each cell is split on commas (for explicit alternatives).
-    Terms are searched exactly as written.
-    """
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-
-    sheet = pd.read_csv(io.StringIO(resp.text))
-    categories: Dict[str, List[str]] = {}
-
-    for col in sheet.columns:
-        seen: set = set()
-        terms: List[str] = []
-
-        for val in sheet[col].dropna():
-            for term in str(val).split(","):
-                term = term.strip()
-                if not term:
-                    continue
-                key = term.lower()
-                if key not in seen:
-                    seen.add(key)
-                    terms.append(term)
-
-        if terms:
-            categories[col] = terms
-
-    return categories
-
-
-# ============================================================================
-# Sentencizer
-# ============================================================================
-
-SENT_BOUNDARY = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
-
-def sentencize(text: str) -> List[str]:
-    """Split text into sentences using punctuation + capital letter boundaries."""
-    if not text or not text.strip():
-        return []
-    return [s.strip() for s in SENT_BOUNDARY.split(text) if s.strip()]
 
 
 # ============================================================================
@@ -112,45 +70,10 @@ def write_to_gsheet(
     credentials_path: str | None,
     gender: str | None,
 ) -> None:
-    """Write results to a tab in a Google Sheet."""
-    import gspread
-    from google.oauth2.service_account import Credentials
-
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-    ]
-
-    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-    if creds_json:
-        info = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-    elif credentials_path:
-        creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
-    else:
-        print(
-            "No credentials provided. Use --credentials or set GOOGLE_CREDENTIALS env var.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    gc = gspread.authorize(creds)
-    spreadsheet = gc.open_by_key(sheet_id)
-
-    tab_name = category
-    if gender:
-        tab_name += f" ({gender})"
-
-    try:
-        worksheet = spreadsheet.worksheet(tab_name)
-        worksheet.clear()
-    except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=tab_name, rows=len(result) + 1, cols=4)
-
-    data = [result.columns.tolist()] + result.values.tolist()
-    worksheet.update(range_name="A1", values=data)
-    worksheet.freeze(rows=1)
-
-    print(f"Wrote {len(result)} rows to Google Sheet tab '{tab_name}'")
+    """Write results to a tab (named after the category) in a Google Sheet."""
+    tab_name = category + (f" ({gender})" if gender else "")
+    rows = [result.columns.tolist()] + result.values.tolist()
+    write_tab(open_spreadsheet(sheet_id, credentials_path), tab_name, rows)
 
 
 # ============================================================================
@@ -265,7 +188,7 @@ def main() -> None:
         print(f"Filtered to {len(df)} {args.gender} documents")
 
     # -- Build patterns (bigrams first so longest match wins) ----------------
-    patterns = [(w, re.compile(r"\b" + re.escape(w) + r"\b", re.IGNORECASE)) for w in words]
+    patterns = [(w, term_pattern(w)) for w in words]
 
     # -- Search sentences ---------------------------------------------------
     rows: List[dict] = []
@@ -284,7 +207,6 @@ def main() -> None:
                 if pat.search(sent):
                     rows.append({
                         "doc_id": doc_id,
-                    "testimony_number": testimony_number,
                         "testimony_number": testimony_number,
                         "sentence_idx": sent_idx,
                         "matched_word": word,
