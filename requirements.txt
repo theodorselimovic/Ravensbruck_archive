@@ -3,3 +3,4 @@ pyarrow
 requests
 gspread
 google-auth
+scipy

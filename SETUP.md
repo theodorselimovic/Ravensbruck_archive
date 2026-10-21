@@ -10,6 +10,20 @@ corpus filter from GitHub's web interface and get results in a Google Sheet.
 3. Click **Run workflow**, pick a category (and optionally a gender filter)
 4. Wait ~2 minutes — results appear as a new tab in the output Google Sheet
 
+Search terms: separate alternatives with commas. Wrap multi-word phrases in
+quotes ("camp mother"); a comma inside quotes does not split the phrase.
+
+### Category statistics
+
+To see how a category co-varies with metadata (gender, religion, age,
+interviewer, place/date of testimony, series, length):
+
+1. GitHub repo → **Actions** tab → **Category statistics** → **Run workflow**
+2. Pick a category and a variable (`all` gives an overview table of every
+   combination), optionally restricted to one gender
+3. Results appear as a tab named `Stats: <category> × <variable>` in the
+   output Google Sheet, with a short "How to read this" note at the bottom
+
 ## One-time setup (admin)
 
 ### Step 1: Create a Google Cloud service account (~10 min)
@@ -56,4 +70,5 @@ git push
 ### Step 5: Update workflow categories (when the sheet changes)
 
 If new columns are added to the input Google Sheet, update the category
-list in `.github/workflows/filter_corpus.yml` under `inputs.category.options`.
+list under `inputs.category.options` in both
+`.github/workflows/filter_corpus.yml` and `.github/workflows/category_stats.yml`.

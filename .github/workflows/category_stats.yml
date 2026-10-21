@@ -1,0 +1,74 @@
+name: Category statistics
+
+on:
+  workflow_dispatch:
+    inputs:
+      category:
+        description: 'Category from the Google Sheet ("all" = every category, overview only)'
+        required: true
+        type: choice
+        options:
+          - 'all'
+          - 'Confined space'
+          - 'Unconfined nature space'
+          - 'Unconfined imaginary space'
+          - 'Identity positions'
+          - 'Agency'
+          - 'Emotions'
+          - 'Embodiment'
+          - 'Events'
+          - 'Time'
+          - 'Mobilities'
+      variable:
+        description: 'Metadata variable ("all" = every variable, overview only)'
+        required: true
+        type: choice
+        options:
+          - 'all'
+          - 'gender'
+          - 'religion'
+          - 'age'
+          - 'testimony_date'
+          - 'testimony_place'
+          - 'recorder'
+          - 'series'
+          - 'length'
+      gender:
+        description: 'Restrict to one gender (optional)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - 'female'
+          - 'male'
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run statistics
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          CATEGORY: ${{ inputs.category }}
+          VARIABLE: ${{ inputs.variable }}
+          GENDER: ${{ inputs.gender }}
+          OUTPUT_SHEET_ID: ${{ secrets.OUTPUT_SHEET_ID }}
+        run: |
+          ARGS=(--category "$CATEGORY" --variable "$VARIABLE" --output-gsheet "$OUTPUT_SHEET_ID")
+          if [ -n "$GENDER" ]; then
+            ARGS+=(--gender "$GENDER")
+          fi
+          python kod/13_category_stats.py "${ARGS[@]}"
